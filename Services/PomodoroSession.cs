@@ -9,14 +9,18 @@ namespace Pomodoro.Services
     /// </summary>
     public sealed class PomodoroSession
     {
+        private const int SecondsPerMinute = 60;
+
         private readonly IClock clock;
         private readonly AppSettings settings;
+        private readonly ISessionLog? sessionLog;
         private PomodoroEngine engine;
 
-        public PomodoroSession(AppSettings settings, IClock clock)
+        public PomodoroSession(AppSettings settings, IClock clock, ISessionLog? sessionLog = null)
         {
             this.settings = settings;
             this.clock = clock;
+            this.sessionLog = sessionLog;
             engine = new PomodoroEngine(settings);
             clock.Tick += OnClockTick;
         }
@@ -61,6 +65,11 @@ namespace Pomodoro.Services
 
         public void SwitchTo(TimerMode mode)
         {
+            if (engine.IsRunning)
+            {
+                return;
+            }
+
             clock.Stop();
             engine.SwitchTo(mode);
             Changed?.Invoke();
@@ -91,8 +100,13 @@ namespace Pomodoro.Services
         private void RunFinishSequence()
         {
             bool wasPomodoro = engine.CurrentMode == TimerMode.Pomodoro;
+            if (wasPomodoro)
+            {
+                RecordCompletedPomodoro();
+            }
+
             TimerMode nextMode = engine.SelectNextMode();
-            engine.SwitchTo(nextMode);
+            engine.AdvanceTo(nextMode);
 
             Finished?.Invoke();
             Changed?.Invoke();
@@ -102,6 +116,17 @@ namespace Pomodoro.Services
             {
                 Start();
             }
+        }
+
+        private void RecordCompletedPomodoro()
+        {
+            if (sessionLog == null)
+            {
+                return;
+            }
+
+            int durationSeconds = settings.PomodoroMinutes * SecondsPerMinute;
+            sessionLog.Record(new CompletedPomodoro(clock.Now, durationSeconds, null));
         }
     }
 }

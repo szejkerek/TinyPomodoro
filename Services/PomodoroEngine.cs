@@ -9,28 +9,44 @@ namespace Pomodoro.Services
 
         private readonly AppSettings settings;
 
+        // Each mode keeps its own countdown, so switching tabs while paused never loses progress.
+        private readonly Dictionary<TimerMode, int> remainingByMode = new Dictionary<TimerMode, int>();
+
         public PomodoroEngine(AppSettings settings)
         {
             this.settings = settings;
+            foreach (TimerMode mode in Enum.GetValues<TimerMode>())
+            {
+                remainingByMode[mode] = FullSeconds(mode);
+            }
+
             CurrentMode = TimerMode.Pomodoro;
-            RemainingSeconds = settings.MinutesFor(TimerMode.Pomodoro) * SecondsPerMinute;
         }
 
         public TimerMode CurrentMode { get; private set; }
-        public int RemainingSeconds { get; private set; }
+        public int RemainingSeconds => remainingByMode[CurrentMode];
         public bool IsRunning { get; private set; }
         public int CompletedPomodoros { get; private set; }
 
+        /// <summary>Manual mode switch (tabs): keeps each mode's parked time intact.</summary>
         public void SwitchTo(TimerMode mode)
         {
             CurrentMode = mode;
-            RemainingSeconds = settings.MinutesFor(mode) * SecondsPerMinute;
+            IsRunning = false;
+        }
+
+        /// <summary>Auto-advance after a finish: both the leaving and entering modes start fresh.</summary>
+        public void AdvanceTo(TimerMode mode)
+        {
+            remainingByMode[CurrentMode] = FullSeconds(CurrentMode);
+            remainingByMode[mode] = FullSeconds(mode);
+            CurrentMode = mode;
             IsRunning = false;
         }
 
         public void ResetCurrentMode()
         {
-            RemainingSeconds = settings.MinutesFor(CurrentMode) * SecondsPerMinute;
+            remainingByMode[CurrentMode] = FullSeconds(CurrentMode);
             IsRunning = false;
         }
 
@@ -52,13 +68,13 @@ namespace Pomodoro.Services
                 return false;
             }
 
-            RemainingSeconds--;
+            remainingByMode[CurrentMode]--;
             if (RemainingSeconds > 0)
             {
                 return false;
             }
 
-            RemainingSeconds = 0;
+            remainingByMode[CurrentMode] = 0;
             IsRunning = false;
             return true;
         }
@@ -74,6 +90,11 @@ namespace Pomodoro.Services
             CompletedPomodoros++;
             bool isLongBreakDue = CompletedPomodoros % settings.LongBreakInterval == 0;
             return isLongBreakDue ? TimerMode.LongBreak : TimerMode.ShortBreak;
+        }
+
+        private int FullSeconds(TimerMode mode)
+        {
+            return settings.MinutesFor(mode) * SecondsPerMinute;
         }
     }
 }

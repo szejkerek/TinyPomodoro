@@ -102,6 +102,76 @@ namespace Pomodoro.Tests
         }
 
         [Fact]
+        public void Finishing_a_pomodoro_records_it_to_the_session_log()
+        {
+            ManualClock clock = new ManualClock { Now = new DateTime(2026, 6, 23, 15, 0, 0) };
+            InMemorySessionLog log = new InMemorySessionLog();
+            PomodoroSession session = new PomodoroSession(OneMinuteSettings(), clock, log);
+
+            session.Start();
+            clock.Advance(60);
+
+            CompletedPomodoro entry = Assert.Single(log.All());
+            Assert.Equal(new DateTime(2026, 6, 23, 15, 0, 0), entry.CompletedAt);
+            Assert.Equal(60, entry.DurationSeconds);
+        }
+
+        [Fact]
+        public void Finishing_a_break_records_nothing()
+        {
+            AppSettings settings = OneMinuteSettings();
+            settings.AutoStartBreaks = true;
+
+            ManualClock clock = new ManualClock();
+            InMemorySessionLog log = new InMemorySessionLog();
+            PomodoroSession session = new PomodoroSession(settings, clock, log);
+
+            session.Start();
+            clock.Advance(60); // pomodoro -> short break (recorded: 1)
+            clock.Advance(60); // short break -> pomodoro (must NOT record)
+
+            Assert.Single(log.All());
+        }
+
+        [Fact]
+        public void Switching_mode_while_running_is_ignored()
+        {
+            ManualClock clock = new ManualClock();
+            PomodoroSession session = new PomodoroSession(OneMinuteSettings(), clock);
+
+            session.Start();
+            clock.Advance(10);
+            session.SwitchTo(TimerMode.ShortBreak);
+
+            Assert.Equal(TimerMode.Pomodoro, session.CurrentMode);
+            Assert.Equal(50, session.RemainingSeconds);
+            Assert.True(session.IsRunning);
+        }
+
+        [Fact]
+        public void Switching_mode_while_paused_keeps_each_modes_own_remaining_time()
+        {
+            AppSettings settings = OneMinuteSettings();
+            settings.ShortBreakMinutes = 5; // 300s, distinct from the 60s pomodoro
+
+            ManualClock clock = new ManualClock();
+            PomodoroSession session = new PomodoroSession(settings, clock);
+
+            session.Start();
+            clock.Advance(10);            // pomodoro now at 50
+            session.ToggleStartPause();   // pause
+
+            session.SwitchTo(TimerMode.ShortBreak);
+            Assert.Equal(TimerMode.ShortBreak, session.CurrentMode);
+            Assert.Equal(300, session.RemainingSeconds);
+
+            session.SwitchTo(TimerMode.Pomodoro);
+            Assert.Equal(TimerMode.Pomodoro, session.CurrentMode);
+            Assert.Equal(50, session.RemainingSeconds); // not reset to 60
+            Assert.False(session.IsRunning);
+        }
+
+        [Fact]
         public void Changed_fires_on_each_tick()
         {
             ManualClock clock = new ManualClock();
