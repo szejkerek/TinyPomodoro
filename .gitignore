@@ -1,0 +1,32 @@
+# ---- Claude Code / AI assistants ----
+CLAUDE.md
+.claude/
+.cursor/
+.cursorrules
+.github/copilot-instructions.md
+
+# ---- .NET build output ----
+bin/
+obj/
+publish/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+
+# ---- Visual Studio / Rider / VS Code ----
+.vs/
+.idea/
+.vscode/
+*.csproj.user
+
+# ---- App secrets / local config ----
+# Todoist token lives in %APPDATA%\Pomodoro\settings.json (outside repo),
+# but ignore any local copy just in case.
+settings.json
+*.local.json
+
+# ---- OS noise ----
+Thumbs.db
+desktop.ini
+.DS_Store
