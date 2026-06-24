@@ -1,8 +1,10 @@
+using System.Linq;
 using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Pomodoro.Models;
 using Pomodoro.Presentation;
 using Pomodoro.Services;
@@ -11,8 +13,13 @@ namespace Pomodoro
 {
     public partial class MainWindow : Window
     {
+        private const int SecondsPerMinute = 60;
         private const double TabActiveOpacity = 1.0;
         private const double TabInactiveOpacity = 0.6;
+
+        // After clicking a task's circle, hold the completion for this long so a misclick can be undone.
+        // Must match the fade-out duration of the row in MainWindow.xaml.
+        private static readonly TimeSpan CompletionDelay = TimeSpan.FromSeconds(2);
 
         private static readonly SolidColorBrush ActiveTabBrush =
             new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
@@ -23,10 +30,15 @@ namespace Pomodoro
 
         private readonly SettingsService settings = new SettingsService(new SettingsStore());
         private readonly AutoStartManager autoStartManager = new AutoStartManager();
-        private readonly ITodoistGateway gateway = new HttpTodoistGateway();
+        private readonly HttpTodoistGateway todoistGateway = new HttpTodoistGateway();
+        private readonly HttpClickUpGateway clickUpGateway = new HttpClickUpGateway();
+        private readonly ITaskGateway gateway;
         private readonly ISessionLog sessionLog = new JsonSessionLog();
         private readonly TaskListModel taskList;
         private readonly PomodoroSession session;
+
+        // Tasks whose completion is pending (in the undo window), each with its own fire timer.
+        private readonly Dictionary<string, DispatcherTimer> pendingCompletions = new Dictionary<string, DispatcherTimer>();
 
         private bool isPopulatingProjects;
 
@@ -34,6 +46,7 @@ namespace Pomodoro
         {
             InitializeComponent();
 
+            gateway = new TaskGatewayRouter(settings, todoistGateway, clickUpGateway);
             taskList = new TaskListModel(gateway, settings);
             session = new PomodoroSession(settings.Current, new DispatcherClock(), sessionLog);
 
@@ -46,15 +59,20 @@ namespace Pomodoro
 
             ApplyWindowPosition();
             autoStartManager.Apply(settings.Current.StartWithWindows);
+            ConfigureGateways();
 
             Render();
+            UpdateSourceUi();
             ShowHint(taskList.Hint);
 
-            if (settings.Current.TodoistToken.Length > 0)
-            {
-                gateway.UseToken(settings.Current.TodoistToken);
-                Loaded += async (_, _) => await SyncAsync();
-            }
+            Loaded += async (_, _) => await SyncAsync();
+        }
+
+        private void ConfigureGateways()
+        {
+            todoistGateway.UseToken(settings.Current.TodoistToken);
+            clickUpGateway.UseToken(settings.Current.ClickUpToken);
+            clickUpGateway.UseList(settings.Current.ClickUpListId);
         }
 
         // ---- Timer controls (delegate to the session) ----
@@ -115,10 +133,24 @@ namespace Pomodoro
 
             settings.Save();
             autoStartManager.Apply(settings.Current.StartWithWindows);
-            gateway.UseToken(settings.Current.TodoistToken);
+            ConfigureGateways();
             session.ApplySettings();
 
             await SyncAsync();
+        }
+
+        private async void OnSourceTodoistClick(object sender, RoutedEventArgs eventArgs)
+        {
+            await taskList.SwitchSourceAsync(TaskSource.Todoist);
+            RestoreProjectSelection();
+            UpdateSourceUi();
+        }
+
+        private async void OnSourceClickUpClick(object sender, RoutedEventArgs eventArgs)
+        {
+            await taskList.SwitchSourceAsync(TaskSource.ClickUp);
+            RestoreProjectSelection();
+            UpdateSourceUi();
         }
 
         // ---- Todoist (delegate to the task list model) ----
@@ -130,8 +162,17 @@ namespace Pomodoro
 
         private async Task SyncAsync()
         {
+            ClearPendingCompletions();
             await taskList.SyncAsync();
             RestoreProjectSelection();
+            UpdateSourceUi();
+        }
+
+        private void UpdateSourceUi()
+        {
+            StyleTab(SourceTodoist, taskList.ActiveSource == TaskSource.Todoist);
+            StyleTab(SourceClickUp, taskList.ActiveSource == TaskSource.ClickUp);
+            ProjectSelector.Visibility = taskList.SupportsProjects ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void RestoreProjectSelection()
@@ -156,12 +197,77 @@ namespace Pomodoro
             await taskList.SelectProjectAsync(ProjectSelector.SelectedValue as string ?? string.Empty);
         }
 
-        private async void OnTaskClick(object sender, RoutedEventArgs eventArgs)
+        private void OnTaskRowClick(object sender, MouseButtonEventArgs eventArgs)
+        {
+            // Handle it here so the click doesn't bubble up to the window's DragMove.
+            eventArgs.Handled = true;
+            if (sender is FrameworkElement element && element.Tag is string taskId)
+            {
+                // Focusing a task is also the quick way out of an accidental completion.
+                CancelPendingCompletion(taskId);
+                taskList.Focus(taskId);
+            }
+        }
+
+        private void OnTaskCircleClick(object sender, RoutedEventArgs eventArgs)
         {
             if (sender is FrameworkElement element && element.Tag is string taskId)
             {
-                await taskList.CloseTaskAsync(taskId);
+                if (pendingCompletions.ContainsKey(taskId))
+                {
+                    CancelPendingCompletion(taskId);
+                    return;
+                }
+
+                BeginPendingCompletion(taskId);
             }
+        }
+
+        private void BeginPendingCompletion(string taskId)
+        {
+            TodoistTask? task = taskList.Tasks.FirstOrDefault(candidate => candidate.Id == taskId);
+            if (task is null)
+            {
+                return;
+            }
+
+            task.IsCompleting = true;
+
+            DispatcherTimer timer = new DispatcherTimer { Interval = CompletionDelay };
+            timer.Tick += async (_, _) =>
+            {
+                timer.Stop();
+                pendingCompletions.Remove(taskId);
+                await taskList.CloseTaskAsync(taskId);
+            };
+
+            pendingCompletions[taskId] = timer;
+            timer.Start();
+        }
+
+        private void CancelPendingCompletion(string taskId)
+        {
+            if (pendingCompletions.TryGetValue(taskId, out DispatcherTimer? timer))
+            {
+                timer.Stop();
+                pendingCompletions.Remove(taskId);
+            }
+
+            TodoistTask? task = taskList.Tasks.FirstOrDefault(candidate => candidate.Id == taskId);
+            if (task is not null)
+            {
+                task.IsCompleting = false;
+            }
+        }
+
+        private void ClearPendingCompletions()
+        {
+            foreach (DispatcherTimer timer in pendingCompletions.Values)
+            {
+                timer.Stop();
+            }
+
+            pendingCompletions.Clear();
         }
 
         private void ShowHint(string message)
@@ -186,8 +292,8 @@ namespace Pomodoro
 
             ApplyFocusMode(isFocusMode);
 
-            int minutes = session.RemainingSeconds / 60;
-            int seconds = session.RemainingSeconds % 60;
+            int minutes = session.RemainingSeconds / SecondsPerMinute;
+            int seconds = session.RemainingSeconds % SecondsPerMinute;
             TimeText.Text = $"{minutes:00}:{seconds:00}";
             StartButton.Content = isFocusMode ? "PAUSE" : "START";
             Title = $"{TimeText.Text} · Pomodoro";

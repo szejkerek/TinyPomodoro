@@ -63,7 +63,7 @@ namespace Pomodoro.Services
         /// <summary>Decrements one second. Returns true when the current mode just finished.</summary>
         public bool TickOneSecond()
         {
-            if (!IsRunning)
+            if (IsRunning == false)
             {
                 return false;
             }

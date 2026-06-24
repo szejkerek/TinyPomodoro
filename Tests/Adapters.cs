@@ -33,8 +33,8 @@ namespace Pomodoro.Tests
         }
     }
 
-    /// <summary>Test <see cref="ITodoistGateway"/>: serves canned data, records closes.</summary>
-    public sealed class InMemoryTodoistGateway : ITodoistGateway
+    /// <summary>Test <see cref="ITaskGateway"/>: serves canned data, records closes.</summary>
+    public sealed class InMemoryTodoistGateway : ITaskGateway
     {
         public List<TodoistProject> ProjectsToReturn { get; } = new List<TodoistProject>();
 
@@ -46,6 +46,8 @@ namespace Pomodoro.Tests
         private string token = string.Empty;
 
         public bool HasToken => token.Length > 0;
+
+        public bool SupportsProjects { get; set; } = true;
 
         public void UseToken(string value)
         {

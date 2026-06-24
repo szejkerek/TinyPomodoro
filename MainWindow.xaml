@@ -22,7 +22,7 @@
             <Grid x:Name="TopRow" Margin="0,0,0,6">
                 <Button x:Name="SyncButton" Style="{StaticResource IconButton}"
                         Content="↻" HorizontalAlignment="Left"
-                        ToolTip="Refresh tasks from Todoist" Click="OnSyncClick"/>
+                        ToolTip="Refresh tasks" Click="OnSyncClick"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="TabPomodoro" Style="{StaticResource ModeTab}" Content="Pomodoro" Click="OnModeTabClick"/>
                     <Button x:Name="TabShort" Style="{StaticResource ModeTab}" Content="Short" Click="OnModeTabClick"/>
@@ -87,10 +87,21 @@
             <Border x:Name="TasksPanel" Background="#2E000000" CornerRadius="10" Padding="8">
                 <StackPanel>
                     <Grid Margin="2,2,2,6">
-                        <TextBlock Text="TASKS" Foreground="White" Opacity="0.6"
-                                   FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ProjectSelector" HorizontalAlignment="Right"
-                                  MinWidth="150" MaxWidth="180"
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="SourceTodoist" Style="{StaticResource ModeTab}"
+                                    Content="Todoist" FontSize="10" Padding="7,2"
+                                    ToolTip="Show Todoist tasks" Click="OnSourceTodoistClick"/>
+                            <Button x:Name="SourceClickUp" Style="{StaticResource ModeTab}"
+                                    Content="ClickUp" FontSize="10" Padding="7,2"
+                                    ToolTip="Show ClickUp tasks" Click="OnSourceClickUpClick"/>
+                        </StackPanel>
+                        <ComboBox x:Name="ProjectSelector" Grid.Column="2" HorizontalAlignment="Right"
+                                  MinWidth="110" MaxWidth="150"
                                   Style="{StaticResource ProjectCombo}"
                                   ItemContainerStyle="{StaticResource ProjectComboItem}"
                                   SelectedValuePath="Id"
@@ -108,28 +119,70 @@
                         <ItemsControl x:Name="TaskItems">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Click="OnTaskClick" Tag="{Binding Id}" Cursor="Hand"
-                                            HorizontalContentAlignment="Left" Margin="0,1">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="bg" Background="Transparent"
-                                                        CornerRadius="4" Padding="4,5">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="○" Foreground="White" FontSize="14"
-                                                                   Opacity="0.55" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding Content}" Foreground="White"
-                                                                   TextWrapping="Wrap" MaxWidth="220"
-                                                                   VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="bg" Property="Background" Value="#33FFFFFF"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                    </Button>
+                                    <!-- Whole row = focus the task (mouse-down, so it can't drag the window);
+                                         the ○ button = complete it. The circle is a real Button, so its click
+                                         is handled before the row ever sees it. -->
+                                    <Border x:Name="row" Background="Transparent" CornerRadius="4" Padding="2,3"
+                                            Margin="0,1" Cursor="Hand" Tag="{Binding Id}"
+                                            MouseLeftButtonDown="OnTaskRowClick">
+                                        <StackPanel x:Name="content" Orientation="Horizontal">
+                                            <Button Click="OnTaskCircleClick" Tag="{Binding Id}" Cursor="Hand"
+                                                    VerticalAlignment="Center" Margin="0,0,6,0"
+                                                    ToolTip="Complete · click again to undo">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="circle" Background="Transparent"
+                                                                CornerRadius="11" Width="22" Height="22">
+                                                            <TextBlock x:Name="mark" Text="○" Foreground="White"
+                                                                       FontSize="14" Opacity="0.55"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="circle" Property="Background" Value="#33FFFFFF"/>
+                                                                <Setter TargetName="mark" Property="Opacity" Value="1"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <TextBlock x:Name="label" Text="{Binding Content}" Foreground="White"
+                                                       TextWrapping="Wrap" MaxWidth="210"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="row" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="row" Property="Background" Value="#22FFFFFF"/>
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsFocused}" Value="True">
+                                            <Setter TargetName="row" Property="Background" Value="#40FFFFFF"/>
+                                            <Setter TargetName="label" Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                        <!-- Completion pending: fade + strike over the undo window, restore on cancel. -->
+                                        <DataTrigger Binding="{Binding IsCompleting}" Value="True">
+                                            <Setter TargetName="label" Property="TextDecorations" Value="Strikethrough"/>
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="fade">
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="content"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         To="0.25" Duration="0:0:2"/>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="fade"/>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="content"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         To="1" Duration="0:0:0.15"/>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

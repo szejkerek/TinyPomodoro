@@ -88,7 +88,7 @@ namespace Pomodoro.Services
             bool didFinish = engine.TickOneSecond();
             Changed?.Invoke();
 
-            if (!didFinish)
+            if (didFinish == false)
             {
                 return;
             }

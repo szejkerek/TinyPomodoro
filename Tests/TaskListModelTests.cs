@@ -75,6 +75,50 @@ namespace Pomodoro.Tests
         }
 
         [Fact]
+        public async Task Focusing_a_task_pins_it_to_the_top_and_highlights_only_it()
+        {
+            InMemoryTodoistGateway gateway = new InMemoryTodoistGateway();
+            gateway.UseToken("t");
+            gateway.TasksByKey[""] = new List<TodoistTask>
+            {
+                new TodoistTask { Id = "1", Content = "a" },
+                new TodoistTask { Id = "2", Content = "b" },
+                new TodoistTask { Id = "3", Content = "c" }
+            };
+
+            TaskListModel model = new TaskListModel(gateway, SettingsWith(new AppSettings()));
+            await model.SyncAsync();
+
+            model.Focus("3");
+
+            Assert.Equal("3", model.Tasks[0].Id);
+            Assert.True(model.Tasks[0].IsFocused);
+            Assert.All(model.Tasks.Skip(1), task => Assert.False(task.IsFocused));
+        }
+
+        [Fact]
+        public async Task Focusing_another_task_moves_the_highlight()
+        {
+            InMemoryTodoistGateway gateway = new InMemoryTodoistGateway();
+            gateway.UseToken("t");
+            gateway.TasksByKey[""] = new List<TodoistTask>
+            {
+                new TodoistTask { Id = "1", Content = "a" },
+                new TodoistTask { Id = "2", Content = "b" }
+            };
+
+            TaskListModel model = new TaskListModel(gateway, SettingsWith(new AppSettings()));
+            await model.SyncAsync();
+
+            model.Focus("1");
+            model.Focus("2");
+
+            Assert.Equal("2", model.Tasks[0].Id);
+            Assert.True(model.Tasks.Single(task => task.Id == "2").IsFocused);
+            Assert.False(model.Tasks.Single(task => task.Id == "1").IsFocused);
+        }
+
+        [Fact]
         public async Task Closing_a_task_removes_it_and_calls_the_gateway()
         {
             InMemoryTodoistGateway gateway = new InMemoryTodoistGateway();

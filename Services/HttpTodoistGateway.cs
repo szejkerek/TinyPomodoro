@@ -6,8 +6,8 @@ using Pomodoro.Models;
 
 namespace Pomodoro.Services
 {
-    /// <summary>Production <see cref="ITodoistGateway"/>: the Todoist unified API v1 over HTTP.</summary>
-    public sealed class HttpTodoistGateway : ITodoistGateway
+    /// <summary>Production <see cref="ITaskGateway"/>: the Todoist unified API v1 over HTTP.</summary>
+    public sealed class HttpTodoistGateway : ITaskGateway
     {
         private const string ApiBase = "https://api.todoist.com/api/v1";
         private const int PageSize = 200;
@@ -22,6 +22,8 @@ namespace Pomodoro.Services
         private string apiToken = string.Empty;
 
         public bool HasToken => apiToken.Length > 0;
+
+        public bool SupportsProjects => true;
 
         public void UseToken(string token)
         {
@@ -92,7 +94,7 @@ namespace Pomodoro.Services
                 {
                     using HttpRequestMessage request = buildRequest();
                     HttpResponseMessage response = await httpClient.SendAsync(request);
-                    if (attempt >= MaxAttempts || !IsTransient(response.StatusCode))
+                    if (attempt >= MaxAttempts || IsTransient(response.StatusCode) == false)
                     {
                         return response;
                     }

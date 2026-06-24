@@ -32,7 +32,7 @@ namespace Pomodoro.Services
             // The streak survives a still-young today: anchor on today if it has a pomodoro,
             // otherwise on yesterday. Only two idle days in a row truly break it.
             DateTime anchor = today.Date;
-            if (!activeDays.Contains(anchor))
+            if (activeDays.Contains(anchor) == false)
             {
                 anchor = anchor.AddDays(-1);
             }

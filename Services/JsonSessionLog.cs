@@ -49,7 +49,7 @@ namespace Pomodoro.Services
         private static List<CompletedPomodoro> ReadAll(string path)
         {
             List<CompletedPomodoro> loaded = new List<CompletedPomodoro>();
-            if (!File.Exists(path))
+            if (File.Exists(path) == false)
             {
                 return loaded;
             }

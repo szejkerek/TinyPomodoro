@@ -11,12 +11,13 @@ namespace Pomodoro.Services
     public sealed class TaskListModel
     {
         public const string TokenMissingHint = "Add a Todoist token in settings (⚙) to see your tasks.";
+        public const string ClickUpTokenMissingHint = "Add a ClickUp token and List ID in settings (⚙) to see your tasks.";
         private const string AllProjectsName = "All";
 
-        private readonly ITodoistGateway gateway;
+        private readonly ITaskGateway gateway;
         private readonly SettingsService settings;
 
-        public TaskListModel(ITodoistGateway gateway, SettingsService settings)
+        public TaskListModel(ITaskGateway gateway, SettingsService settings)
         {
             this.gateway = gateway;
             this.settings = settings;
@@ -30,24 +31,66 @@ namespace Pomodoro.Services
         public event Action? HintChanged;
 
         public bool HasToken => gateway.HasToken;
+        public bool SupportsProjects => gateway.SupportsProjects;
+        public TaskSource ActiveSource => settings.Current.ActiveSource;
         public string SelectedProjectId => settings.Current.SelectedProjectId;
 
         public async Task SyncAsync()
         {
-            if (!gateway.HasToken)
+            if (gateway.HasToken == false)
             {
-                SetHint(TokenMissingHint);
+                Projects.Clear();
+                Tasks.Clear();
+                SetHint(TokenHint());
                 return;
             }
 
-            await LoadProjectsAsync();
+            if (gateway.SupportsProjects)
+            {
+                await LoadProjectsAsync();
+            }
+            else
+            {
+                Projects.Clear();
+            }
+
             await LoadTasksAsync();
+        }
+
+        public async Task SwitchSourceAsync(TaskSource source)
+        {
+            settings.Update(current => current.ActiveSource = source);
+            await SyncAsync();
         }
 
         public async Task SelectProjectAsync(string projectId)
         {
             settings.Update(current => current.SelectedProjectId = projectId);
             await LoadTasksAsync();
+        }
+
+        /// <summary>
+        /// Mark a task as the one being worked on: pin it to the top of the list and highlight it,
+        /// clearing the highlight from whatever was focused before.
+        /// </summary>
+        public void Focus(string taskId)
+        {
+            TodoistTask? target = Tasks.FirstOrDefault(task => task.Id == taskId);
+            if (target is null)
+            {
+                return;
+            }
+
+            foreach (TodoistTask task in Tasks)
+            {
+                task.IsFocused = task == target;
+            }
+
+            int index = Tasks.IndexOf(target);
+            if (index > 0)
+            {
+                Tasks.Move(index, 0);
+            }
         }
 
         public async Task CloseTaskAsync(string taskId)
@@ -81,7 +124,7 @@ namespace Pomodoro.Services
                 }
 
                 bool selectionStillExists = Projects.Any(project => project.Id == settings.Current.SelectedProjectId);
-                if (!selectionStillExists)
+                if (selectionStillExists == false)
                 {
                     settings.Update(current => current.SelectedProjectId = string.Empty);
                 }
@@ -111,6 +154,13 @@ namespace Pomodoro.Services
             {
                 SetHint($"Todoist error: {error.Message}");
             }
+        }
+
+        private string TokenHint()
+        {
+            return settings.Current.ActiveSource == TaskSource.ClickUp
+                ? ClickUpTokenMissingHint
+                : TokenMissingHint;
         }
 
         private void SetHint(string message)

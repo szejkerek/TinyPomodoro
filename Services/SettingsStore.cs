@@ -23,7 +23,7 @@ namespace Pomodoro.Services
 
         public AppSettings Load()
         {
-            if (!File.Exists(settingsFilePath))
+            if (File.Exists(settingsFilePath) == false)
             {
                 return new AppSettings();
             }

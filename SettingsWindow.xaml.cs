@@ -29,6 +29,9 @@ namespace Pomodoro
 
             TokenBox.Password = settings.TodoistToken;
             FilterBox.Text = settings.TodoistFilter;
+
+            ClickUpTokenBox.Password = settings.ClickUpToken;
+            ClickUpListBox.Text = settings.ClickUpListId;
         }
 
         private void OnSaveClick(object sender, RoutedEventArgs eventArgs)
@@ -45,6 +48,9 @@ namespace Pomodoro
 
             settings.TodoistToken = TokenBox.Password.Trim();
             settings.TodoistFilter = FilterBox.Text.Trim();
+
+            settings.ClickUpToken = ClickUpTokenBox.Password.Trim();
+            settings.ClickUpListId = ClickUpListBox.Text.Trim();
 
             DialogResult = true;
         }
