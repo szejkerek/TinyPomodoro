@@ -2,7 +2,7 @@
 
 # 🍅 Tiny Pomodoro
 
-**Stay focused. A tiny always-on-top timer that lives in the corner of your screen.**
+** A tiny always-on-top timer that lives in the corner of your screen.**
 
 [![Download](https://img.shields.io/badge/Download%20for%20Windows-BA4949?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/szejkerek/Pomodoro/releases/latest)
 
