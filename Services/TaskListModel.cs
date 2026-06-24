@@ -12,7 +12,6 @@ namespace Pomodoro.Services
     {
         public const string TokenMissingHint = "Add a Todoist token in settings (⚙) to see your tasks.";
         public const string ClickUpTokenMissingHint = "Add a ClickUp token and List ID in settings (⚙) to see your tasks.";
-        public const string AsanaHint = "Work mode (Asana) — no task integration. Focus sessions count as work.";
         private const string AllProjectsName = "All";
 
         private readonly ITaskGateway gateway;
@@ -209,7 +208,7 @@ namespace Pomodoro.Services
             return settings.Current.ActiveSource switch
             {
                 TaskSource.ClickUp => ClickUpTokenMissingHint,
-                TaskSource.Asana => AsanaHint,
+                TaskSource.Asana => string.Empty,
                 _ => TokenMissingHint
             };
         }

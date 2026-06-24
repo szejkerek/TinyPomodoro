@@ -1,7 +1,5 @@
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text.Json;
 using Pomodoro.Models;
 
 namespace Pomodoro.Services
@@ -18,7 +16,7 @@ namespace Pomodoro.Services
         private const int MaxAttempts = 4;
         private const int RetryBackoffMs = 400;
 
-        private readonly HttpClient httpClient = new HttpClient();
+        private readonly HttpJsonTransport transport = new HttpJsonTransport(new HttpClient(), MaxAttempts, RetryBackoffMs);
         private string apiToken = string.Empty;
 
         public bool HasToken => apiToken.Length > 0;
@@ -37,9 +35,9 @@ namespace Pomodoro.Services
             return Task.FromResult(string.Empty);
         }
 
-        public void UseToken(string token)
+        public void Configure(AppSettings settings)
         {
-            apiToken = token.Trim();
+            apiToken = settings.TodoistToken.Trim();
         }
 
         public async Task<IReadOnlyList<TodoistProject>> GetProjectsAsync()
@@ -77,60 +75,70 @@ namespace Pomodoro.Services
             }
             while (HasMorePages(cursor, pageIndex));
 
+            foreach (TodoistTask task in collected)
+            {
+                task.DueDate = DueDateLabel.FromTodoist(task.Due?.Date);
+            }
+
+            await TagWithSectionNamesAsync(collected);
+
             // Match Todoist's manual ordering instead of raw API order.
             return collected.OrderBy(task => task.ChildOrder).ToList();
+        }
+
+        // Informational only: show which section each task sits in. One section lookup per task load.
+        private async Task TagWithSectionNamesAsync(List<TodoistTask> tasks)
+        {
+            bool anySectioned = tasks.Any(task => string.IsNullOrEmpty(task.SectionId) == false);
+            if (anySectioned == false)
+            {
+                return;
+            }
+
+            Dictionary<string, string> namesById = await GetSectionNamesAsync();
+            foreach (TodoistTask task in tasks)
+            {
+                if (task.SectionId is not null && namesById.TryGetValue(task.SectionId, out string? name))
+                {
+                    task.SectionName = name;
+                }
+            }
+        }
+
+        private async Task<Dictionary<string, string>> GetSectionNamesAsync()
+        {
+            Dictionary<string, string> namesById = new Dictionary<string, string>();
+            string? cursor = null;
+            int pageIndex = 0;
+
+            do
+            {
+                string requestUrl = AppendCursor($"{ApiBase}/sections?limit={PageSize}", cursor);
+                TodoistSectionPage page = await GetJsonAsync<TodoistSectionPage>(requestUrl);
+                foreach (TodoistSection section in page.Results)
+                {
+                    namesById[section.Id] = section.Name;
+                }
+
+                cursor = page.NextCursor;
+                pageIndex++;
+            }
+            while (HasMorePages(cursor, pageIndex));
+
+            return namesById;
         }
 
         public async Task CloseTaskAsync(string taskId)
         {
             string requestUrl = $"{ApiBase}/tasks/{taskId}/close";
-            using HttpResponseMessage response = await SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, requestUrl));
+            using HttpResponseMessage response =
+                await transport.SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, requestUrl));
             response.EnsureSuccessStatusCode();
         }
 
-        private async Task<T> GetJsonAsync<T>(string requestUrl) where T : new()
+        private Task<T> GetJsonAsync<T>(string requestUrl) where T : new()
         {
-            using HttpResponseMessage response = await SendWithRetryAsync(() => BuildRequest(HttpMethod.Get, requestUrl));
-            response.EnsureSuccessStatusCode();
-
-            string json = await response.Content.ReadAsStringAsync();
-            T? parsed = JsonSerializer.Deserialize<T>(json);
-            return parsed ?? new T();
-        }
-
-        private async Task<HttpResponseMessage> SendWithRetryAsync(Func<HttpRequestMessage> buildRequest)
-        {
-            for (int attempt = 1; ; attempt++)
-            {
-                try
-                {
-                    using HttpRequestMessage request = buildRequest();
-                    HttpResponseMessage response = await httpClient.SendAsync(request);
-                    if (attempt >= MaxAttempts || IsTransient(response.StatusCode) == false)
-                    {
-                        return response;
-                    }
-
-                    response.Dispose();
-                }
-                catch (HttpRequestException) when (attempt < MaxAttempts)
-                {
-                }
-                catch (TaskCanceledException) when (attempt < MaxAttempts)
-                {
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(RetryBackoffMs * attempt));
-            }
-        }
-
-        private static bool IsTransient(HttpStatusCode status)
-        {
-            return status == HttpStatusCode.InternalServerError
-                || status == HttpStatusCode.BadGateway
-                || status == HttpStatusCode.ServiceUnavailable
-                || status == HttpStatusCode.GatewayTimeout
-                || status == HttpStatusCode.TooManyRequests;
+            return transport.GetJsonAsync<T>(() => BuildRequest(HttpMethod.Get, requestUrl));
         }
 
         private static bool HasMorePages(string? cursor, int pageIndex)

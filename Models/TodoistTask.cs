@@ -20,9 +20,17 @@ namespace Pomodoro.Models
         [JsonPropertyName("is_completed")]
         public bool IsCompleted { get; set; }
 
+        [JsonPropertyName("section_id")]
+        public string? SectionId { get; set; }
+
+        [JsonPropertyName("due")]
+        public TodoistDue? Due { get; set; }
+
         private bool isFocused;
         private bool isCompleting;
         private string status = string.Empty;
+        private string sectionName = string.Empty;
+        private string dueDate = string.Empty;
 
         /// <summary>UI-only: the backend status/column this task sits in (ClickUp), e.g. "in progress". Empty otherwise.</summary>
         [JsonIgnore]
@@ -30,6 +38,22 @@ namespace Pomodoro.Models
         {
             get => status;
             set => SetField(ref status, value, nameof(Status));
+        }
+
+        /// <summary>UI-only: the Todoist section this task sits in, shown for information. Empty if none.</summary>
+        [JsonIgnore]
+        public string SectionName
+        {
+            get => sectionName;
+            set => SetField(ref sectionName, value, nameof(SectionName));
+        }
+
+        /// <summary>UI-only: short due-date label (e.g. "📅 Jun 26"), or empty when the task has no due date.</summary>
+        [JsonIgnore]
+        public string DueDate
+        {
+            get => dueDate;
+            set => SetField(ref dueDate, value, nameof(DueDate));
         }
 
         /// <summary>UI-only: the task the user is currently working on (pinned to the top, highlighted).</summary>

@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
 using Pomodoro.Models;
 using Pomodoro.Presentation;
 using Pomodoro.Services;
@@ -19,7 +18,7 @@ namespace Pomodoro
 
         // After clicking a task's circle, hold the completion for this long so a misclick can be undone.
         // Must match the fade-out duration of the row in MainWindow.xaml.
-        private static readonly TimeSpan CompletionDelay = TimeSpan.FromSeconds(2);
+        private const int CompletionDelaySeconds = 2;
 
         private static readonly SolidColorBrush ActiveTabBrush =
             new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
@@ -30,16 +29,17 @@ namespace Pomodoro
 
         private readonly SettingsService settings = new SettingsService(new SettingsStore());
         private readonly AutoStartManager autoStartManager = new AutoStartManager();
-        private readonly HttpTodoistGateway todoistGateway = new HttpTodoistGateway();
-        private readonly HttpClickUpGateway clickUpGateway = new HttpClickUpGateway();
+        private readonly ITaskGateway todoistGateway = new HttpTodoistGateway();
+        private readonly ITaskGateway clickUpGateway = new HttpClickUpGateway();
         private readonly ITaskGateway asanaGateway = new NullTaskGateway();
         private readonly ITaskGateway gateway;
         private readonly ISessionLog sessionLog = new JsonSessionLog();
         private readonly TaskListModel taskList;
         private readonly PomodoroSession session;
 
-        // Tasks whose completion is pending (in the undo window), each with its own fire timer.
-        private readonly Dictionary<string, DispatcherTimer> pendingCompletions = new Dictionary<string, DispatcherTimer>();
+        // The undo window for task completion; runs on its own clock so a paused timer doesn't stall it.
+        private readonly PendingCompletions pendingCompletions =
+            new PendingCompletions(new DispatcherClock(), CompletionDelaySeconds);
 
         private bool isPopulatingProjects;
 
@@ -54,6 +54,7 @@ namespace Pomodoro
             session.Changed += Render;
             session.Finished += OnSessionFinished;
             taskList.HintChanged += () => ShowHint(taskList.Hint);
+            pendingCompletions.Elapsed += taskId => _ = CompletePendingTaskAsync(taskId);
 
             TaskItems.ItemsSource = taskList.Tasks;
             ProjectSelector.ItemsSource = taskList.Projects;
@@ -71,9 +72,7 @@ namespace Pomodoro
 
         private void ConfigureGateways()
         {
-            todoistGateway.UseToken(settings.Current.TodoistToken);
-            clickUpGateway.UseToken(settings.Current.ClickUpToken);
-            clickUpGateway.UseList(settings.Current.ClickUpListId);
+            gateway.Configure(settings.Current);
         }
 
         // ---- Timer controls (delegate to the session) ----
@@ -222,7 +221,7 @@ namespace Pomodoro
         {
             if (sender is FrameworkElement element && element.Tag is string taskId)
             {
-                if (pendingCompletions.ContainsKey(taskId))
+                if (pendingCompletions.IsPending(taskId))
                 {
                     CancelPendingCompletion(taskId);
                     return;
@@ -241,26 +240,12 @@ namespace Pomodoro
             }
 
             task.IsCompleting = true;
-
-            DispatcherTimer timer = new DispatcherTimer { Interval = CompletionDelay };
-            timer.Tick += async (_, _) =>
-            {
-                timer.Stop();
-                pendingCompletions.Remove(taskId);
-                await taskList.CloseTaskAsync(taskId);
-            };
-
-            pendingCompletions[taskId] = timer;
-            timer.Start();
+            pendingCompletions.Begin(taskId);
         }
 
         private void CancelPendingCompletion(string taskId)
         {
-            if (pendingCompletions.TryGetValue(taskId, out DispatcherTimer? timer))
-            {
-                timer.Stop();
-                pendingCompletions.Remove(taskId);
-            }
+            pendingCompletions.Cancel(taskId);
 
             TodoistTask? task = taskList.Tasks.FirstOrDefault(candidate => candidate.Id == taskId);
             if (task is not null)
@@ -269,14 +254,14 @@ namespace Pomodoro
             }
         }
 
+        private async Task CompletePendingTaskAsync(string taskId)
+        {
+            await taskList.CloseTaskAsync(taskId);
+        }
+
         private void ClearPendingCompletions()
         {
-            foreach (DispatcherTimer timer in pendingCompletions.Values)
-            {
-                timer.Stop();
-            }
-
-            pendingCompletions.Clear();
+            pendingCompletions.ClearAll();
         }
 
         private void ShowHint(string message)

@@ -36,7 +36,13 @@ namespace Pomodoro.Services
 
         public bool SupportsStatusWorkflow => Active.SupportsStatusWorkflow;
 
-        public void UseToken(string token) => Active.UseToken(token);
+        // Configure every backend, not just the active one, so flipping the source later needs no re-wire.
+        public void Configure(AppSettings appSettings)
+        {
+            todoist.Configure(appSettings);
+            clickUp.Configure(appSettings);
+            asana.Configure(appSettings);
+        }
 
         public Task<IReadOnlyList<TodoistProject>> GetProjectsAsync() => Active.GetProjectsAsync();
 

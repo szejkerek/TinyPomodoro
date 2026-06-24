@@ -70,6 +70,11 @@ namespace Pomodoro.Tests
             token = value.Trim();
         }
 
+        public void Configure(AppSettings settings)
+        {
+            token = settings.TodoistToken.Trim();
+        }
+
         public Task<IReadOnlyList<TodoistProject>> GetProjectsAsync()
         {
             return Task.FromResult<IReadOnlyList<TodoistProject>>(ProjectsToReturn);

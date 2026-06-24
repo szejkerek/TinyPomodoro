@@ -99,8 +99,8 @@ namespace Pomodoro.Services
 
         private void RunFinishSequence()
         {
-            bool wasPomodoro = engine.CurrentMode == TimerMode.Pomodoro;
-            if (wasPomodoro)
+            TimerMode finishedMode = engine.CurrentMode;
+            if (PomodoroEngine.ShouldRecord(finishedMode))
             {
                 RecordCompletedPomodoro();
             }
@@ -111,8 +111,7 @@ namespace Pomodoro.Services
             Finished?.Invoke();
             Changed?.Invoke();
 
-            bool shouldAutoStart = wasPomodoro ? settings.AutoStartBreaks : settings.AutoStartPomodoros;
-            if (shouldAutoStart)
+            if (PomodoroEngine.ShouldAutoStart(finishedMode, settings))
             {
                 Start();
             }

@@ -79,6 +79,21 @@ namespace Pomodoro.Services
             return true;
         }
 
+        /// <summary>Only finished pomodoros count as focus and go to the session log; breaks don't.</summary>
+        public static bool ShouldRecord(TimerMode finishedMode)
+        {
+            return finishedMode == TimerMode.Pomodoro;
+        }
+
+        /// <summary>
+        /// After a finish, whether the next mode starts on its own: a finished pomodoro follows
+        /// <see cref="AppSettings.AutoStartBreaks"/>, a finished break follows <see cref="AppSettings.AutoStartPomodoros"/>.
+        /// </summary>
+        public static bool ShouldAutoStart(TimerMode finishedMode, AppSettings settings)
+        {
+            return finishedMode == TimerMode.Pomodoro ? settings.AutoStartBreaks : settings.AutoStartPomodoros;
+        }
+
         /// <summary>Moves to the mode that naturally follows the one that just finished.</summary>
         public TimerMode SelectNextMode()
         {

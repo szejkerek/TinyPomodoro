@@ -152,8 +152,16 @@
                                             <StackPanel Orientation="Vertical" VerticalAlignment="Center">
                                                 <TextBlock x:Name="label" Text="{Binding Content}" Foreground="White"
                                                            TextWrapping="Wrap" MaxWidth="205"/>
-                                                <TextBlock x:Name="statusLabel" Text="{Binding Status}" Foreground="White"
-                                                           Opacity="0.45" FontSize="9" Margin="0,1,0,0"/>
+                                                <!-- ClickUp: status tag, coloured by its workflow column -->
+                                                <TextBlock x:Name="statusLabel" Text="{Binding Status}"
+                                                           Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"
+                                                           FontSize="9" FontWeight="SemiBold" Margin="0,1,0,0"/>
+                                                <!-- Todoist: which section the task sits in (informational) -->
+                                                <TextBlock x:Name="sectionLabel" Text="{Binding SectionName}" Foreground="White"
+                                                           Opacity="0.4" FontSize="9" Margin="0,1,0,0"/>
+                                                <!-- Due date, if set (both sources) -->
+                                                <TextBlock x:Name="dueLabel" Text="{Binding DueDate}" Foreground="White"
+                                                           Opacity="0.55" FontSize="9" Margin="0,1,0,0"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -163,6 +171,12 @@
                                         </Trigger>
                                         <DataTrigger Binding="{Binding Status}" Value="">
                                             <Setter TargetName="statusLabel" Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SectionName}" Value="">
+                                            <Setter TargetName="sectionLabel" Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DueDate}" Value="">
+                                            <Setter TargetName="dueLabel" Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsFocused}" Value="True">
                                             <Setter TargetName="row" Property="Background" Value="#40FFFFFF"/>

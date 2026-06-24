@@ -47,7 +47,7 @@ namespace Pomodoro
 
         private void RenderHeatmap(int[,,] grid)
         {
-            int peak = Peak(grid);
+            int peak = SessionStats.Peak(grid);
 
             HeatmapGrid.RowDefinitions.Clear();
             HeatmapGrid.ColumnDefinitions.Clear();
@@ -224,31 +224,5 @@ namespace Pomodoro
             return entry;
         }
 
-        private static int Peak(int[,,] grid)
-        {
-            int peak = 0;
-            int days = grid.GetLength(0);
-            int hours = grid.GetLength(1);
-            int sources = grid.GetLength(2);
-
-            for (int day = 0; day < days; day++)
-            {
-                for (int hour = 0; hour < hours; hour++)
-                {
-                    int total = 0;
-                    for (int source = 0; source < sources; source++)
-                    {
-                        total += grid[day, hour, source];
-                    }
-
-                    if (total > peak)
-                    {
-                        peak = total;
-                    }
-                }
-            }
-
-            return peak;
-        }
     }
 }

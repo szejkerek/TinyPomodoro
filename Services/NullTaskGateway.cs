@@ -15,7 +15,7 @@ namespace Pomodoro.Services
 
         public bool SupportsStatusWorkflow => false;
 
-        public void UseToken(string token)
+        public void Configure(AppSettings settings)
         {
         }
 

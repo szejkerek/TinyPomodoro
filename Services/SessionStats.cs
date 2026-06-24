@@ -49,6 +49,37 @@ namespace Pomodoro.Services
             return grid;
         }
 
+        /// <summary>
+        /// The busiest slot in a source-split heatmap: the largest sum across sources for any
+        /// [day, hour] cell. Used to normalise heat intensity. Returns 0 for an all-zero grid.
+        /// </summary>
+        public static int Peak(int[,,] grid)
+        {
+            int days = grid.GetLength(0);
+            int hours = grid.GetLength(1);
+            int sources = grid.GetLength(2);
+
+            int peak = 0;
+            for (int day = 0; day < days; day++)
+            {
+                for (int hour = 0; hour < hours; hour++)
+                {
+                    int total = 0;
+                    for (int source = 0; source < sources; source++)
+                    {
+                        total += grid[day, hour, source];
+                    }
+
+                    if (total > peak)
+                    {
+                        peak = total;
+                    }
+                }
+            }
+
+            return peak;
+        }
+
         public static int CurrentStreak(IReadOnlyList<CompletedPomodoro> entries, DateTime today)
         {
             HashSet<DateTime> activeDays = new HashSet<DateTime>(entries.Select(entry => entry.CompletedAt.Date));

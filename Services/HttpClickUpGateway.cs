@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -37,7 +36,7 @@ namespace Pomodoro.Services
         private const string FallbackInProgressStatus = "in progress";
         private const string FallbackReviewStatus = "review";
 
-        private readonly HttpClient httpClient = new HttpClient();
+        private readonly HttpJsonTransport transport = new HttpJsonTransport(new HttpClient(), MaxAttempts, RetryBackoffMs);
         private string apiToken = string.Empty;
         private string listId = string.Empty;
 
@@ -54,26 +53,23 @@ namespace Pomodoro.Services
 
         public bool SupportsStatusWorkflow => true;
 
-        public void UseToken(string token)
+        public void Configure(AppSettings settings)
         {
-            string trimmed = token.Trim();
-            if (trimmed != apiToken)
+            string newToken = settings.ClickUpToken.Trim();
+            if (newToken != apiToken)
             {
                 currentUserId = null;
             }
 
-            apiToken = trimmed;
-        }
+            apiToken = newToken;
 
-        public void UseList(string listIdValue)
-        {
-            string trimmed = listIdValue.Trim();
-            if (trimmed != listId)
+            string newList = settings.ClickUpListId.Trim();
+            if (newList != listId)
             {
                 workflow = null;
             }
 
-            listId = trimmed;
+            listId = newList;
         }
 
         public Task<IReadOnlyList<TodoistProject>> GetProjectsAsync()
@@ -101,7 +97,13 @@ namespace Pomodoro.Services
                         continue;
                     }
 
-                    collected.Add(new TodoistTask { Id = task.Id, Content = task.Name, Status = statusName });
+                    collected.Add(new TodoistTask
+                    {
+                        Id = task.Id,
+                        Content = task.Name,
+                        Status = statusName,
+                        DueDate = DueDateLabel.FromClickUpMillis(task.DueDate)
+                    });
                 }
 
                 if (fetched.IsLastPage || fetched.Tasks.Count == 0)
@@ -141,7 +143,7 @@ namespace Pomodoro.Services
             string body = JsonSerializer.Serialize(new ClickUpStatusUpdate { Status = status });
 
             using HttpResponseMessage response =
-                await SendWithRetryAsync(() => BuildJsonRequest(HttpMethod.Put, requestUrl, body));
+                await transport.SendWithRetryAsync(() => BuildJsonRequest(HttpMethod.Put, requestUrl, body));
             response.EnsureSuccessStatusCode();
         }
 
@@ -207,49 +209,9 @@ namespace Pomodoro.Services
             return statuses.FirstOrDefault(status => status.Type == type)?.Status;
         }
 
-        private async Task<T> GetJsonAsync<T>(string requestUrl) where T : new()
+        private Task<T> GetJsonAsync<T>(string requestUrl) where T : new()
         {
-            using HttpResponseMessage response = await SendWithRetryAsync(() => BuildRequest(HttpMethod.Get, requestUrl));
-            response.EnsureSuccessStatusCode();
-
-            string json = await response.Content.ReadAsStringAsync();
-            T? parsed = JsonSerializer.Deserialize<T>(json);
-            return parsed ?? new T();
-        }
-
-        private async Task<HttpResponseMessage> SendWithRetryAsync(Func<HttpRequestMessage> buildRequest)
-        {
-            for (int attempt = 1; ; attempt++)
-            {
-                try
-                {
-                    using HttpRequestMessage request = buildRequest();
-                    HttpResponseMessage response = await httpClient.SendAsync(request);
-                    if (attempt >= MaxAttempts || IsTransient(response.StatusCode) == false)
-                    {
-                        return response;
-                    }
-
-                    response.Dispose();
-                }
-                catch (HttpRequestException) when (attempt < MaxAttempts)
-                {
-                }
-                catch (TaskCanceledException) when (attempt < MaxAttempts)
-                {
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(RetryBackoffMs * attempt));
-            }
-        }
-
-        private static bool IsTransient(HttpStatusCode status)
-        {
-            return status == HttpStatusCode.InternalServerError
-                || status == HttpStatusCode.BadGateway
-                || status == HttpStatusCode.ServiceUnavailable
-                || status == HttpStatusCode.GatewayTimeout
-                || status == HttpStatusCode.TooManyRequests;
+            return transport.GetJsonAsync<T>(() => BuildRequest(HttpMethod.Get, requestUrl));
         }
 
         private HttpRequestMessage BuildRequest(HttpMethod method, string url)
@@ -288,6 +250,9 @@ namespace Pomodoro.Services
 
         [JsonPropertyName("status")]
         public ClickUpStatus? Status { get; set; }
+
+        [JsonPropertyName("due_date")]
+        public string? DueDate { get; set; }
     }
 
     /// <summary>The three list columns the widget drives, resolved to this list's custom names.</summary>

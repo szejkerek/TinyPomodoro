@@ -25,7 +25,13 @@ namespace Pomodoro.Services
         /// </summary>
         bool SupportsStatusWorkflow { get; }
 
-        void UseToken(string token);
+        /// <summary>
+        /// Point the gateway at its backend from the live settings. Each adapter reads only what it
+        /// needs (Todoist: token + filter; ClickUp: token + list), so callers never reach past the
+        /// seam to configure a specific backend.
+        /// </summary>
+        void Configure(AppSettings settings);
+
         Task<IReadOnlyList<TodoistProject>> GetProjectsAsync();
         Task<IReadOnlyList<TodoistTask>> GetActiveTasksAsync(string filter, string projectId);
 
