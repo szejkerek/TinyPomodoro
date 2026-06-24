@@ -16,7 +16,7 @@
  
  **Always on top** - borderless, frameless, drag it anywhere. It never gets in the way.
  
- **Your tasks, right there** <img width="772" height="396" alt="image" src="https://github.com/user-attachments/assets/f40eeeba-c430-43fe-908a-acb9962e11d6" /> pull in tasks from **Todoist** or **ClickUp**, see due dates and status. Tick them off as you go.
+ **Your tasks, right there** pull in tasks from **Todoist** or **ClickUp**, see due dates and status. Tick them off as you go.
  
  **Streaks & heatmap** - a focus stat view that shows when you actually get things done.
 
