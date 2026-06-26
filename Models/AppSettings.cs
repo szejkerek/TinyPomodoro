@@ -12,6 +12,10 @@ namespace Pomodoro.Models
         public bool SoundEnabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = true;
 
+        public bool FocusRadioEnabled { get; set; } = false;
+        public int RadioStationIndex { get; set; } = 0;
+        public double RadioVolume { get; set; } = 0.5;
+
         public TaskSource ActiveSource { get; set; } = TaskSource.Todoist;
 
         public string TodoistToken { get; set; } = string.Empty;

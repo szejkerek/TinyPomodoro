@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Pomodoro.Models;
 using Pomodoro.Presentation;
 using Pomodoro.Services;
@@ -63,12 +64,21 @@ namespace Pomodoro
         private readonly IFocusBlocker focusBlocker;
         private readonly FocusGuard focusGuard;
         private readonly SessionController controller;
+        private readonly IRadioPlayer radioPlayer = new MediaPlayerRadio();
+        private readonly RadioModel radioModel;
+
+        // The faux-beat equalizer animation; runs only while the radio is actually playing.
+        private readonly Storyboard equalizerBeat;
+        private bool isEqualizerRunning;
 
         // The undo window for task completion; runs on its own clock so a paused timer doesn't stall it.
         private readonly PendingCompletions pendingCompletions =
             new PendingCompletions(new DispatcherClock(), CompletionDelaySeconds);
 
         private bool isPopulatingProjects;
+
+        // Suppresses the volume slider's ValueChanged while RenderRadio sets it programmatically.
+        private bool isSettingVolume;
 
         // Global start/pause hotkey: Ctrl+Alt+P, works even when the widget isn't focused.
         private const int HotkeyId = 0x9001;
@@ -95,7 +105,13 @@ namespace Pomodoro
             controller = new SessionController(
                 session, taskList, pendingCompletions, focusGuard, settings, gateway, autoStartManager);
 
+            equalizerBeat = (Storyboard)FindResource("EqualizerBeat");
+
+            radioModel = new RadioModel(radioPlayer, settings);
+            radioModel.Changed += RenderRadio;
+
             session.Changed += Render;
+            session.Changed += SyncRadioToFocus;
             controller.Finished += OnSessionFinished;
             taskList.HintChanged += () => ShowHint(taskList.Hint);
 
@@ -111,6 +127,7 @@ namespace Pomodoro
 
             Render();
             RenderStreak();
+            RenderRadio();
             UpdateSourceUi();
             ShowHint(taskList.Hint);
 
@@ -211,6 +228,28 @@ namespace Pomodoro
         {
             StatsWindow dialog = new StatsWindow(sessionLog) { Owner = this };
             dialog.ShowDialog();
+        }
+
+        // ---- Focus radio ----
+
+        private void OnRadioMuteClick(object sender, RoutedEventArgs eventArgs)
+        {
+            radioModel.ToggleMute();
+        }
+
+        private void OnRadioSkipClick(object sender, RoutedEventArgs eventArgs)
+        {
+            radioModel.Skip();
+        }
+
+        private void OnRadioVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> eventArgs)
+        {
+            if (isSettingVolume)
+            {
+                return;
+            }
+
+            radioModel.SetVolume(eventArgs.NewValue);
         }
 
         // ---- Window chrome ----
@@ -355,6 +394,46 @@ namespace Pomodoro
 
             FocusLabel.Visibility = isFocusMode ? Visibility.Visible : Visibility.Collapsed;
             FocusLabel.Text = session.CurrentMode == TimerMode.Pomodoro ? "FOCUS MODE" : "BREAK";
+        }
+
+        // Focus radio runs only while a pomodoro is actually in progress — not during breaks.
+        private void SyncRadioToFocus()
+        {
+            bool isFocusRunning = session.IsRunning && session.CurrentMode == TimerMode.Pomodoro;
+            radioModel.FollowFocus(isFocusRunning);
+        }
+
+        private void RenderRadio()
+        {
+            RadioPanel.Visibility = radioModel.IsActive ? Visibility.Visible : Visibility.Collapsed;
+
+            SoundWaves.Visibility = radioModel.IsMuted ? Visibility.Collapsed : Visibility.Visible;
+            MuteSlash.Visibility = radioModel.IsMuted ? Visibility.Visible : Visibility.Collapsed;
+            Equalizer.ToolTip = radioModel.CurrentStation.Name;
+
+            isSettingVolume = true;
+            RadioVolumeSlider.Value = radioModel.Volume;
+            isSettingVolume = false;
+
+            UpdateEqualizerAnimation(radioModel.IsPlaying);
+        }
+
+        // The bars bounce only while audible — start the looping storyboard on play, freeze it on pause.
+        private void UpdateEqualizerAnimation(bool shouldAnimate)
+        {
+            if (shouldAnimate == isEqualizerRunning)
+            {
+                return;
+            }
+
+            isEqualizerRunning = shouldAnimate;
+            if (shouldAnimate)
+            {
+                equalizerBeat.Begin(this, isControllable: true);
+                return;
+            }
+
+            equalizerBeat.Stop(this);
         }
 
         private void RenderStreak()
