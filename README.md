@@ -2,7 +2,7 @@
 
 # 🍅 Tiny Pomodoro
 
-** A tiny always-on-top timer that lives in the corner of your screen.**
+**A tiny always-on-top timer that lives in the corner of your screen.**
 
 [![Download](https://img.shields.io/badge/Download%20for%20Windows-BA4949?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/szejkerek/Pomodoro/releases/latest)
 
@@ -12,10 +12,13 @@
 
 ---
 
- **Distraction blocker** — while a pomodoro runs, block time-sink sites (YouTube, Facebook, LinkedIn, webmail) and kill distracting apps (Spotify). Everything comes back the moment you pause or hit a break.
- **Always on top** — borderless, frameless, drag it anywhere. It never gets in the way.
- **Your tasks, right there** — pull in tasks from **Todoist** or **ClickUp**, see due dates and status. Tick them off as you go.
- **Streaks & heatmap** — a focus stat view that shows when you actually get things done.
+ **Distraction blocker** - while a pomodoro runs, block time-sink sites (YouTube, Facebook, LinkedIn, webmail) and kill distracting apps (Spotify). Everything comes back the moment you pause or hit a break.
+ 
+ **Always on top** - borderless, frameless, drag it anywhere. It never gets in the way.
+ 
+ **Your tasks, right there** pull in tasks from **Todoist** or **ClickUp**, see due dates and status. Tick them off as you go.
+ 
+ **Streaks & heatmap** - a focus stat view that shows when you actually get things done.
 
 ## Get started
 
@@ -26,7 +29,7 @@
 
 > Windows 10/11. No installer, no account, no telemetry. Your settings and tokens stay on your machine.
 >
-> The distraction blocker edits the Windows `hosts` file, so the app asks for **admin rights** on launch (UAC). Browsers with **Secure DNS / DNS-over-HTTPS** can bypass site blocking — turn it off there for the block to bite.
+> The distraction blocker edits the Windows `hosts` file, so the app asks for **admin rights** on launch (UAC). Browsers with **Secure DNS / DNS-over-HTTPS** can bypass site blocking - turn it off there for the block to bite.
 
 ---
 
