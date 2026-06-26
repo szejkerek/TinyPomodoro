@@ -18,6 +18,8 @@
  
  **Your tasks, right there** pull in tasks from **Todoist** or **ClickUp**, see due dates and status. Tick them off as you go.
  
+ **Focus radio** - optional background audio that follows your session: it starts when a pomodoro begins and stops on breaks. Pick a category (lo-fi, synthwave, classical, pink/brown noise) right from the widget, and edit the station list in settings.
+
  **Streaks & heatmap** - a focus stat view that shows when you actually get things done.
 
 ## Get started
@@ -26,6 +28,7 @@
 2. Drag it to a corner. Hit **START**.
 3. *(Optional)* Open settings ⚙ to connect Todoist or ClickUp.
 4. *(Optional)* In settings, turn on **Block distractions** and edit the site/app lists. While focusing, those sites and apps stay blocked until you pause or take a break.
+5. *(Optional)* Turn on **focus radio** in settings and edit the station list (`Category | Name | URL`, one per line). While focusing, use the list button on the player to switch category.
 
 > Windows 10/11. No installer, no account, no telemetry. Your settings and tokens stay on your machine.
 >
